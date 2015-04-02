@@ -11,12 +11,12 @@ namespace SkylinesBulldoze
     {
         public string Description
         {
-            get { return "Destroy!!! 1."; }
+            get { return "Better bulldoze tool"; }
         }
 
         public string Name
         {
-            get { return "Destroy Tool"; }
+            get { return "Better bulldoze Tool"; }
         }
     }
     public class LoadingExtension : LoadingExtensionBase
@@ -25,8 +25,16 @@ namespace SkylinesBulldoze
 
         public override void OnLevelLoaded(LoadMode mode)
         {
-            GameObject gameController = GameObject.FindWithTag("GameController");
-            bulldozeTool = gameController.AddComponent<BetterBulldozeTool>();
+            bulldozeTool = GameObject.FindObjectOfType<BetterBulldozeTool>();
+            if(bulldozeTool == null)
+            {
+                GameObject gameController = GameObject.FindWithTag("GameController");
+                bulldozeTool = gameController.AddComponent<BetterBulldozeTool>();
+            }
+            bulldozeTool.InitGui();
+            bulldozeTool.enabled = false;
         }
+
     }
+    
 }

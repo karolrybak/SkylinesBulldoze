@@ -33,6 +33,7 @@ namespace SkylinesBulldoze
         public bool m_bulldozeTrees = true;
         public bool m_bulldozePowerPoles = true;
         public bool m_bulldozePipes = true;
+        public bool m_bulldozeProps = true;
 
         public UIButton mainButton;
         public UIPanel marqueeBulldozePanel;
@@ -42,6 +43,7 @@ namespace SkylinesBulldoze
         private UICheckBox cbTrees;
         private UICheckBox cbRailroads;
         private UICheckBox cbPaths;
+        private UICheckBox cbProps;
 
         protected override void Awake()
         {
@@ -76,7 +78,7 @@ namespace SkylinesBulldoze
                 marqueeBulldozePanel.backgroundSprite = "SubcategoriesPanel";
                 marqueeBulldozePanel.isVisible = false;
                 marqueeBulldozePanel.name = "MarqueeBulldozerSettings";
-                marqueeBulldozePanel.size = new Vector2(150, 115);
+                marqueeBulldozePanel.size = new Vector2(150, 140);
 
                 marqueeBulldozePanel.relativePosition = new Vector2
                 (
@@ -85,9 +87,10 @@ namespace SkylinesBulldoze
                 );
                 marqueeBulldozePanel.isVisible = true;
 
-                cbTrees = addCheckbox(marqueeBulldozePanel, 20, "Trees");                
-                cbBuildings = addCheckbox(marqueeBulldozePanel, 45, "Buildings");
-                cbRoads = addCheckbox(marqueeBulldozePanel, 70, "Nodes");
+                cbTrees = addCheckbox(marqueeBulldozePanel, 20, "Trees");
+                cbProps = addCheckbox(marqueeBulldozePanel, 45, "Props");
+                cbBuildings = addCheckbox(marqueeBulldozePanel, 70, "Buildings");
+                cbRoads = addCheckbox(marqueeBulldozePanel, 95, "Nodes");
                 cbBuildings.isChecked = false;
                 cbRoads.isChecked = false;
 
@@ -453,6 +456,51 @@ namespace SkylinesBulldoze
         }
 
 
+        protected void BulldozeProps()
+        {
+            List<ushort> propsToDelete = new List<ushort>();
+            var minX = this.m_startPosition.x < this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
+            var minZ = this.m_startPosition.z < this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
+            var maxX = this.m_startPosition.x > this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
+            var maxZ = this.m_startPosition.z > this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
+
+            int num = Mathf.Max((int)((minX - 16f) / 64f + 135f), 0);
+            int num2 = Mathf.Max((int)((minZ - 16f) / 64f + 135f), 0);
+            int num3 = Mathf.Min((int)((maxX + 16f) / 64f + 135f), 269);
+            int num4 = Mathf.Min((int)((maxZ + 16f) / 64f + 135f), 269);
+            for (int i = num2; i <= num4; i++)
+            {
+                for (int j = num; j <= num3; j++)
+                {
+                    ushort num5 = PropManager.instance.m_propGrid[i * 270 + j];
+                    int num6 = 0;
+                    while (num5 != 0u)
+                    {
+                        var prop = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)];
+                        Vector3 position = prop.Position;
+                        float num7 = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
+                        if (num7 < 0f)
+                        {
+
+                            propsToDelete.Add(num5);
+                        }
+                        num5 = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)].m_nextGridProp;
+                        if (++num6 >= 262144)
+                        {
+                            CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + Environment.StackTrace);
+                            break;
+                        }
+                    }
+                }
+            }
+            foreach (ushort prop in propsToDelete)
+            {
+                PropManager.instance.ReleaseProp(prop);
+            }
+           PropManager.instance.m_propsUpdated = true;
+
+        }
+
         protected void ApplyBulldoze()
         {
             if(cbTrees.isChecked)
@@ -461,6 +509,8 @@ namespace SkylinesBulldoze
                 BulldozeRoads();
             if(cbBuildings.isChecked)
                 BulldozeBuildings();
+            if (cbProps.isChecked)
+                BulldozeProps();
         }
 
         protected override void OnToolGUI()

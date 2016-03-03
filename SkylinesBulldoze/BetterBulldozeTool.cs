@@ -513,26 +513,24 @@ namespace SkylinesBulldoze
                 BulldozeProps();
         }
 
-        protected override void OnToolGUI()
+        protected override void OnToolGUI(Event e)
         {
-            Event current = Event.current;
-            
-            if (current.type == EventType.MouseDown && m_mouseRayValid)
+            if (e.type == EventType.MouseDown && m_mouseRayValid)
             {
-                if (current.button == 0)
+                if (e.button == 0)
                 {
                     m_active = true;
                     this.m_startPosition = this.m_mousePosition;
                     this.m_startDirection = Vector3.forward;
                 }
-                if (current.button == 1)
+                if (e.button == 1)
                 {
                     m_active = false;
                 }
             }
-            else if (current.type == EventType.MouseUp && m_active)
+            else if (e.type == EventType.MouseUp && m_active)
             {
-                if (current.button == 0)
+                if (e.button == 0)
                 {
                     ApplyBulldoze();
                     m_active = false;

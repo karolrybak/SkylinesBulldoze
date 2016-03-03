@@ -8,6 +8,7 @@ using ColossalFramework.UI;
 using UnityEngine;
 using System.Threading;
 using ColossalFramework.Math;
+using ICities;
 
 namespace SkylinesBulldoze
 {
@@ -52,7 +53,7 @@ namespace SkylinesBulldoze
             base.Awake();
         }
 
-        public void InitGui()
+        public void InitGui(LoadMode mode)
         {
             mainButton = UIView.GetAView().FindUIComponent<UIButton>("MarqueeBulldozer");
             
@@ -63,14 +64,23 @@ namespace SkylinesBulldoze
                 mainButton = bulldozeButton.parent.AddUIComponent<UIButton>();
                 mainButton.name = "MarqueeBulldozer";
                 mainButton.size = new Vector2(36, 36);
+                mainButton.tooltip = "Better Bulldozer";
                 mainButton.relativePosition = new Vector2
                 (
                     bulldozeButton.relativePosition.x + bulldozeButton.width / 2.0f - mainButton.width - bulldozeButton.width,
                     bulldozeButton.relativePosition.y + bulldozeButton.height / 2.0f - mainButton.height / 2.0f
                 );
-                mainButton.normalBgSprite = "ZoningOptionMarquee";
-                mainButton.focusedFgSprite = "ToolbarIconGroup6Focused";
-                mainButton.hoveredFgSprite = "ToolbarIconGroup6Hovered";
+                if (mode == LoadMode.NewGame || mode == LoadMode.LoadGame)
+                {
+                    mainButton.normalBgSprite = "ZoningOptionMarquee";
+                    mainButton.focusedFgSprite = "ToolbarIconGroup6Focused";
+                    mainButton.hoveredFgSprite = "ToolbarIconGroup6Hovered";
+                }
+                else { 
+                    mainButton.normalFgSprite = bulldozeButton.normalFgSprite;
+                    mainButton.focusedFgSprite = bulldozeButton.focusedFgSprite;
+                    mainButton.hoveredFgSprite = bulldozeButton.hoveredFgSprite;
+                }
 
                 mainButton.eventClick += buttonClicked;
 

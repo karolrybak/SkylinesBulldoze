@@ -4,6 +4,8 @@ using ICities;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static UnityEngine.Object;
+using Object = UnityEngine.Object;
 
 namespace SkylinesBulldoze
 {
@@ -25,16 +27,16 @@ namespace SkylinesBulldoze
 
         public override void OnLevelLoaded(LoadMode mode)
         {
-            bulldozeTool = GameObject.FindObjectOfType<BetterBulldozeTool>();
+            base.OnLevelLoaded(mode);
+            bulldozeTool = FindObjectOfType<BetterBulldozeTool>();
             if(bulldozeTool == null)
             {
                 GameObject gameController = GameObject.FindWithTag("GameController");
                 bulldozeTool = gameController.AddComponent<BetterBulldozeTool>();
             }
-            bulldozeTool.InitGui();
+            bulldozeTool.InitGui(mode);
             bulldozeTool.enabled = false;
         }
-
     }
     
 }

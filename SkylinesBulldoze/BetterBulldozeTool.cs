@@ -11,7 +11,7 @@ using ColossalFramework.Math;
 
 namespace SkylinesBulldoze
 {
-    public class BetterBulldozeTool : ToolBase
+    public class BetterBulldozeTool : DefaultTool
     {
         private object m_dataLock = new object();
         
@@ -24,7 +24,7 @@ namespace SkylinesBulldoze
         private Ray m_mouseRay;
         private float m_mouseRayLength;
         private Vector3 m_cameraDirection;
-        public List<ushort> nodesToDelete;
+        public List<ushort> segmentsToDelete;
         public float m_maxArea = 400f;
 
         public bool m_bulldozeRoads = true;
@@ -90,7 +90,7 @@ namespace SkylinesBulldoze
                 cbTrees = addCheckbox(marqueeBulldozePanel, 20, "Trees");
                 cbProps = addCheckbox(marqueeBulldozePanel, 45, "Props");
                 cbBuildings = addCheckbox(marqueeBulldozePanel, 70, "Buildings");
-                cbRoads = addCheckbox(marqueeBulldozePanel, 95, "Nodes");
+                cbRoads = addCheckbox(marqueeBulldozePanel, 95, "Networks");
                 cbBuildings.isChecked = false;
                 cbRoads.isChecked = false;
 
@@ -303,7 +303,7 @@ namespace SkylinesBulldoze
 
         protected void BulldozeRoads()
         {
-            nodesToDelete = new List<ushort>();
+            segmentsToDelete = new List<ushort>();
 
             var minX = this.m_startPosition.x < this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
             var minZ = this.m_startPosition.z < this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
@@ -319,18 +319,18 @@ namespace SkylinesBulldoze
             {
                 for (int j = gridMinX; j <= gridMaxX; j++)
                 {
-                    ushort num5 = NetManager.instance.m_nodeGrid[i * 270 + j];
+                    ushort num5 = NetManager.instance.m_segmentGrid[i * 270 + j];
                     int num6 = 0;
                     while (num5 != 0u)
                     {
-                        var node = NetManager.instance.m_nodes.m_buffer[(int)((UIntPtr)num5)];
+                        var segment = NetManager.instance.m_segments.m_buffer[(int)((UIntPtr)num5)];
                         
-                        Vector3 position = node.m_position;
+                        Vector3 position = segment.m_middlePosition;
                         float positionDiff = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
                         
-                        if (positionDiff < 0f)
+                        if (positionDiff < 0f && segment.Info.name!= "Airplane Path" && segment.Info.name != "Ship Path")
                         {
-                            nodesToDelete.Add(num5);
+                            segmentsToDelete.Add(num5);
                         }
                         num5 = NetManager.instance.m_segments.m_buffer[(int)((UIntPtr)num5)].m_nextGridSegment;
                         if (++num6 >= 262144)
@@ -342,20 +342,26 @@ namespace SkylinesBulldoze
                 }
             }
 
-            foreach (var road_id in nodesToDelete)
+            foreach (var segment in segmentsToDelete)
             {
-                SimulationManager.instance.AddAction(this.ReleaseNode(road_id));
+                SimulationManager.instance.AddAction(this.ReleaseSegment(segment));
             }
             NetManager.instance.m_nodesUpdated = true;
         }
 
 
 
-        private IEnumerator ReleaseNode(ushort node)
+        private IEnumerator ReleaseSegment(ushort segment)
         {
-            NetManager.instance.ReleaseNode(node);            
+            ToolBase.ToolErrors errors = ToolErrors.None;
+            ;
+            if (CheckSegment(segment, ref errors))
+            {
+                NetManager.instance.ReleaseSegment(segment, false);
+            }
             yield return null;
         }
+
 
         protected void BulldozeBuildings()
         {
@@ -383,9 +389,8 @@ namespace SkylinesBulldoze
 
                         Vector3 position = building.m_position;
                         float positionDiff = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
-                        if (positionDiff < 0f)
+                        if (positionDiff < 0f && building.m_parentBuilding <= 0)
                         {
-
                             buildingsToDelete.Add(num5);
                         }
                         num5 = BuildingManager.instance.m_buildings.m_buffer[(int)((UIntPtr)num5)].m_nextGridBuilding;
@@ -479,9 +484,9 @@ namespace SkylinesBulldoze
                         var prop = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)];
                         Vector3 position = prop.Position;
                         float num7 = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
+
                         if (num7 < 0f)
                         {
-
                             propsToDelete.Add(num5);
                         }
                         num5 = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)].m_nextGridProp;

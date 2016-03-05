@@ -8,10 +8,11 @@ using ColossalFramework.UI;
 using UnityEngine;
 using System.Threading;
 using ColossalFramework.Math;
+using ICities;
 
 namespace SkylinesBulldoze
 {
-    public class BetterBulldozeTool : ToolBase
+    public class BetterBulldozeTool : DefaultTool
     {
         private object m_dataLock = new object();
         
@@ -24,7 +25,7 @@ namespace SkylinesBulldoze
         private Ray m_mouseRay;
         private float m_mouseRayLength;
         private Vector3 m_cameraDirection;
-        public List<ushort> nodesToDelete;
+        public List<ushort> segmentsToDelete;
         public float m_maxArea = 400f;
 
         public bool m_bulldozeRoads = true;
@@ -33,6 +34,7 @@ namespace SkylinesBulldoze
         public bool m_bulldozeTrees = true;
         public bool m_bulldozePowerPoles = true;
         public bool m_bulldozePipes = true;
+        public bool m_bulldozeProps = true;
 
         public UIButton mainButton;
         public UIPanel marqueeBulldozePanel;
@@ -42,6 +44,7 @@ namespace SkylinesBulldoze
         private UICheckBox cbTrees;
         private UICheckBox cbRailroads;
         private UICheckBox cbPaths;
+        private UICheckBox cbProps;
 
         protected override void Awake()
         {
@@ -50,7 +53,7 @@ namespace SkylinesBulldoze
             base.Awake();
         }
 
-        public void InitGui()
+        public void InitGui(LoadMode mode)
         {
             mainButton = UIView.GetAView().FindUIComponent<UIButton>("MarqueeBulldozer");
             
@@ -61,14 +64,23 @@ namespace SkylinesBulldoze
                 mainButton = bulldozeButton.parent.AddUIComponent<UIButton>();
                 mainButton.name = "MarqueeBulldozer";
                 mainButton.size = new Vector2(36, 36);
+                mainButton.tooltip = "Better Bulldozer";
                 mainButton.relativePosition = new Vector2
                 (
                     bulldozeButton.relativePosition.x + bulldozeButton.width / 2.0f - mainButton.width - bulldozeButton.width,
                     bulldozeButton.relativePosition.y + bulldozeButton.height / 2.0f - mainButton.height / 2.0f
                 );
-                mainButton.normalBgSprite = "ZoningOptionMarquee";
-                mainButton.focusedFgSprite = "ToolbarIconGroup6Focused";
-                mainButton.hoveredFgSprite = "ToolbarIconGroup6Hovered";
+                if (mode == LoadMode.NewGame || mode == LoadMode.LoadGame)
+                {
+                    mainButton.normalBgSprite = "ZoningOptionMarquee";
+                    mainButton.focusedFgSprite = "ToolbarIconGroup6Focused";
+                    mainButton.hoveredFgSprite = "ToolbarIconGroup6Hovered";
+                }
+                else { 
+                    mainButton.normalFgSprite = bulldozeButton.normalFgSprite;
+                    mainButton.focusedFgSprite = bulldozeButton.focusedFgSprite;
+                    mainButton.hoveredFgSprite = bulldozeButton.hoveredFgSprite;
+                }
 
                 mainButton.eventClick += buttonClicked;
 
@@ -76,7 +88,7 @@ namespace SkylinesBulldoze
                 marqueeBulldozePanel.backgroundSprite = "SubcategoriesPanel";
                 marqueeBulldozePanel.isVisible = false;
                 marqueeBulldozePanel.name = "MarqueeBulldozerSettings";
-                marqueeBulldozePanel.size = new Vector2(150, 115);
+                marqueeBulldozePanel.size = new Vector2(150, 140);
 
                 marqueeBulldozePanel.relativePosition = new Vector2
                 (
@@ -85,9 +97,10 @@ namespace SkylinesBulldoze
                 );
                 marqueeBulldozePanel.isVisible = true;
 
-                cbTrees = addCheckbox(marqueeBulldozePanel, 20, "Trees");                
-                cbBuildings = addCheckbox(marqueeBulldozePanel, 45, "Buildings");
-                cbRoads = addCheckbox(marqueeBulldozePanel, 70, "Nodes");
+                cbTrees = addCheckbox(marqueeBulldozePanel, 20, "Trees");
+                cbProps = addCheckbox(marqueeBulldozePanel, 45, "Props");
+                cbBuildings = addCheckbox(marqueeBulldozePanel, 70, "Buildings");
+                cbRoads = addCheckbox(marqueeBulldozePanel, 95, "Networks");
                 cbBuildings.isChecked = false;
                 cbRoads.isChecked = false;
 
@@ -300,7 +313,7 @@ namespace SkylinesBulldoze
 
         protected void BulldozeRoads()
         {
-            nodesToDelete = new List<ushort>();
+            segmentsToDelete = new List<ushort>();
 
             var minX = this.m_startPosition.x < this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
             var minZ = this.m_startPosition.z < this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
@@ -316,18 +329,18 @@ namespace SkylinesBulldoze
             {
                 for (int j = gridMinX; j <= gridMaxX; j++)
                 {
-                    ushort num5 = NetManager.instance.m_nodeGrid[i * 270 + j];
+                    ushort num5 = NetManager.instance.m_segmentGrid[i * 270 + j];
                     int num6 = 0;
                     while (num5 != 0u)
                     {
-                        var node = NetManager.instance.m_nodes.m_buffer[(int)((UIntPtr)num5)];
+                        var segment = NetManager.instance.m_segments.m_buffer[(int)((UIntPtr)num5)];
                         
-                        Vector3 position = node.m_position;
+                        Vector3 position = segment.m_middlePosition;
                         float positionDiff = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
                         
-                        if (positionDiff < 0f)
+                        if (positionDiff < 0f && segment.Info.name!= "Airplane Path" && segment.Info.name != "Ship Path")
                         {
-                            nodesToDelete.Add(num5);
+                            segmentsToDelete.Add(num5);
                         }
                         num5 = NetManager.instance.m_segments.m_buffer[(int)((UIntPtr)num5)].m_nextGridSegment;
                         if (++num6 >= 262144)
@@ -339,20 +352,26 @@ namespace SkylinesBulldoze
                 }
             }
 
-            foreach (var road_id in nodesToDelete)
+            foreach (var segment in segmentsToDelete)
             {
-                SimulationManager.instance.AddAction(this.ReleaseNode(road_id));
+                SimulationManager.instance.AddAction(this.ReleaseSegment(segment));
             }
             NetManager.instance.m_nodesUpdated = true;
         }
 
 
 
-        private IEnumerator ReleaseNode(ushort node)
+        private IEnumerator ReleaseSegment(ushort segment)
         {
-            NetManager.instance.ReleaseNode(node);            
+            ToolBase.ToolErrors errors = ToolErrors.None;
+            ;
+            if (CheckSegment(segment, ref errors))
+            {
+                NetManager.instance.ReleaseSegment(segment, false);
+            }
             yield return null;
         }
+
 
         protected void BulldozeBuildings()
         {
@@ -380,9 +399,8 @@ namespace SkylinesBulldoze
 
                         Vector3 position = building.m_position;
                         float positionDiff = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
-                        if (positionDiff < 0f)
+                        if (positionDiff < 0f && building.m_parentBuilding <= 0)
                         {
-
                             buildingsToDelete.Add(num5);
                         }
                         num5 = BuildingManager.instance.m_buildings.m_buffer[(int)((UIntPtr)num5)].m_nextGridBuilding;
@@ -453,6 +471,51 @@ namespace SkylinesBulldoze
         }
 
 
+        protected void BulldozeProps()
+        {
+            List<ushort> propsToDelete = new List<ushort>();
+            var minX = this.m_startPosition.x < this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
+            var minZ = this.m_startPosition.z < this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
+            var maxX = this.m_startPosition.x > this.m_mousePosition.x ? this.m_startPosition.x : this.m_mousePosition.x;
+            var maxZ = this.m_startPosition.z > this.m_mousePosition.z ? this.m_startPosition.z : this.m_mousePosition.z;
+
+            int num = Mathf.Max((int)((minX - 16f) / 64f + 135f), 0);
+            int num2 = Mathf.Max((int)((minZ - 16f) / 64f + 135f), 0);
+            int num3 = Mathf.Min((int)((maxX + 16f) / 64f + 135f), 269);
+            int num4 = Mathf.Min((int)((maxZ + 16f) / 64f + 135f), 269);
+            for (int i = num2; i <= num4; i++)
+            {
+                for (int j = num; j <= num3; j++)
+                {
+                    ushort num5 = PropManager.instance.m_propGrid[i * 270 + j];
+                    int num6 = 0;
+                    while (num5 != 0u)
+                    {
+                        var prop = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)];
+                        Vector3 position = prop.Position;
+                        float num7 = Mathf.Max(Mathf.Max(minX - 16f - position.x, minZ - 16f - position.z), Mathf.Max(position.x - maxX - 16f, position.z - maxZ - 16f));
+
+                        if (num7 < 0f)
+                        {
+                            propsToDelete.Add(num5);
+                        }
+                        num5 = PropManager.instance.m_props.m_buffer[(int)((UIntPtr)num5)].m_nextGridProp;
+                        if (++num6 >= 262144)
+                        {
+                            CODebugBase<LogChannel>.Error(LogChannel.Core, "Invalid list detected!\n" + Environment.StackTrace);
+                            break;
+                        }
+                    }
+                }
+            }
+            foreach (ushort prop in propsToDelete)
+            {
+                PropManager.instance.ReleaseProp(prop);
+            }
+           PropManager.instance.m_propsUpdated = true;
+
+        }
+
         protected void ApplyBulldoze()
         {
             if(cbTrees.isChecked)
@@ -461,28 +524,28 @@ namespace SkylinesBulldoze
                 BulldozeRoads();
             if(cbBuildings.isChecked)
                 BulldozeBuildings();
+            if (cbProps.isChecked)
+                BulldozeProps();
         }
 
-        protected override void OnToolGUI()
+        protected override void OnToolGUI(Event e)
         {
-            Event current = Event.current;
-            
-            if (current.type == EventType.MouseDown && m_mouseRayValid)
+            if (e.type == EventType.MouseDown && m_mouseRayValid)
             {
-                if (current.button == 0)
+                if (e.button == 0)
                 {
                     m_active = true;
                     this.m_startPosition = this.m_mousePosition;
                     this.m_startDirection = Vector3.forward;
                 }
-                if (current.button == 1)
+                if (e.button == 1)
                 {
                     m_active = false;
                 }
             }
-            else if (current.type == EventType.MouseUp && m_active)
+            else if (e.type == EventType.MouseUp && m_active)
             {
-                if (current.button == 0)
+                if (e.button == 0)
                 {
                     ApplyBulldoze();
                     m_active = false;
